@@ -6,6 +6,7 @@ use Drupal\domain\DomainInterface;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Config\ConfigFactoryOverrideInterface;
 use Drupal\Core\Config\StorageInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 
 /**
  * Domain-specific config overrides.
@@ -28,6 +29,13 @@ class DomainConfigOverrider implements ConfigFactoryOverrideInterface {
    * @var \Drupal\Core\Config\StorageInterface
    */
   protected $storage;
+
+  /**
+   * The module handler.
+   *
+   * @var \Drupal\Core\Extension\ModuleHandlerInterface
+   */
+  protected $moduleHandler;
 
   /**
    * The domain context of the request.
@@ -64,9 +72,12 @@ class DomainConfigOverrider implements ConfigFactoryOverrideInterface {
    *
    * @param \Drupal\Core\Config\StorageInterface $storage
    *   The configuration storage engine.
+   * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
+   *   The module handler.
    */
-  public function __construct(StorageInterface $storage) {
+  public function __construct(StorageInterface $storage, ModuleHandlerInterface $module_handler) {
     $this->storage = $storage;
+    $this->moduleHandler = $module_handler;
   }
 
   /**
@@ -77,11 +88,16 @@ class DomainConfigOverrider implements ConfigFactoryOverrideInterface {
     static $lookups;
     // Key should be a known length, so hash.
     $key = md5(implode(':', $names));
-
     if (isset($lookups[$key])) {
       return $lookups[$key];
     }
 
+    // Set the context of the override request.
+    if (empty($this->contextSet)) {
+      $this->initiateContext();
+    }
+
+    // Prepare our overrides.
     $overrides = [];
     // loadOverrides() runs on config entities, which means that if we try
     // to run this routine on our own data, then we end up in an infinite loop.
@@ -91,9 +107,6 @@ class DomainConfigOverrider implements ConfigFactoryOverrideInterface {
     if (isset($list[0]) && isset($list[1]) && $list[0] == 'domain' && $list[1] == 'record') {
       $lookups[$key] = $overrides;
       return $overrides;
-    }
-    if (empty($this->contextSet)) {
-      $this->initiateContext();
     }
     if (!empty($this->domain)) {
       foreach ($names as $name) {
@@ -184,6 +197,10 @@ class DomainConfigOverrider implements ConfigFactoryOverrideInterface {
     // is called for each lookup, this is more efficient.
     $this->contextSet = TRUE;
 
+    // We must ensure that modules have loaded, which they may not have.
+    // See https://www.drupal.org/project/domain/issues/3025541.
+    $this->moduleHandler->loadAll();
+
     // Get the language context. Note that injecting the language manager
     // into the service created a circular dependency error, so we load from
     // the core service manager.
@@ -193,12 +210,7 @@ class DomainConfigOverrider implements ConfigFactoryOverrideInterface {
     // The same issue is true for the domainNegotiator.
     $this->domainNegotiator = \Drupal::service('domain.negotiator');
     // Get the domain context.
-    $this->domain = $this->domainNegotiator->getActiveDomain();
-    // If we have fired too early in the bootstrap, we must force the routine to
-    // run.
-    if (empty($this->domain)) {
-      $this->domain = $this->domainNegotiator->getActiveDomain(TRUE);
-    }
+    $this->domain = $this->domainNegotiator->getActiveDomain(TRUE);
   }
 
 }

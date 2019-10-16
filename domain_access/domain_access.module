@@ -100,7 +100,7 @@ function domain_access_node_access_records(NodeInterface $node) {
       }
     }
     // Set the domain_site grant.
-    if (!empty($translation->get(DOMAIN_ACCESS_ALL_FIELD)->value) && $translation->isPublished()) {
+    if ($translation->hasField(DOMAIN_ACCESS_ALL_FIELD) && !empty($translation->get(DOMAIN_ACCESS_ALL_FIELD)->value) && $translation->isPublished()) {
       $grants[] = [
         'realm' => 'domain_site',
         'gid' => 0,
@@ -607,7 +607,7 @@ function domain_access_views_data_alter(array &$data) {
       'field' => DOMAIN_ACCESS_FIELD . '_target_id',
       'id' => 'domain_access_current_all_filter',
       'title' => t('Available on current domain'),
-      'help' => t('Filters out nodes not available on current domain (published to current domain or all affiliates).'),
+      'help' => t('Filters out nodes available on current domain (published to current domain or all affiliates).'),
     ],
   ];
   // Since domains are not stored in the database, relationships cannot be used.
